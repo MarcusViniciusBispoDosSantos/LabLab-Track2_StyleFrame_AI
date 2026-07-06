@@ -18,14 +18,16 @@ jobs:
 
       - name: Build linux/amd64 test image
         run: |
+          set -eux
           docker buildx build \
             --platform linux/amd64 \
             -t track2-styleframe-ai:ci \
             --load \
             .
 
-      - name: Create Track 2 input
+      - name: Create Track 2 input folder
         run: |
+          set -eux
           mkdir -p input output
           cat > input/tasks.json <<'JSON'
           [
@@ -36,30 +38,45 @@ jobs:
             }
           ]
           JSON
+          cat input/tasks.json
 
-      - name: Run container like judge
+      - name: Create synthetic video inside Docker image
         run: |
+          set -eux
+          docker run --rm \
+            -v "$PWD/input:/input" \
+            --entrypoint python \
+            track2-styleframe-ai:ci \
+            scripts/create_synthetic_video.py /input/test_clip.mp4
+
+          ls -lh input/test_clip.mp4
+
+      - name: Run Track 2 container like judge
+        run: |
+          set -eux
           docker run --rm \
             -e CAPTION_BACKEND=heuristic \
             -e FRAME_SAMPLE_COUNT=4 \
             -v "$PWD/input:/input" \
             -v "$PWD/output:/output" \
-            --entrypoint sh \
-            track2-styleframe-ai:ci \
-            -lc "python scripts/create_synthetic_video.py /input/test_clip.mp4 && python -m src.main"
+            track2-styleframe-ai:ci
 
       - name: Validate output/results.json
         run: |
+          set -eux
+          ls -lh output
+          cat output/results.json
           python scripts/validate_results.py input/tasks.json output/results.json
           python -m json.tool output/results.json
 
       - name: Confirm linux/amd64 image architecture
         run: |
-          docker image inspect track2-styleframe-ai:ci --format '{{.Architecture}}' | grep -q amd64
+          set -eux
+          ARCH="$(docker image inspect track2-styleframe-ai:ci --format '{{.Architecture}}')"
+          echo "Architecture: $ARCH"
+          test "$ARCH" = "amd64"
 
       - name: Confirm no .env inside image
         run: |
+          set -eux
           docker run --rm track2-styleframe-ai:ci sh -c 'test ! -f /app/.env && echo OK'
-
-      - name: Show result file
-        run: cat output/results.json
