@@ -1,0 +1,65 @@
+name: Track 2 Online Check
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  docker-contract-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build linux/amd64 test image
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            -t track2-styleframe-ai:ci \
+            --load \
+            .
+
+      - name: Create Track 2 input
+        run: |
+          mkdir -p input output
+          cat > input/tasks.json <<'JSON'
+          [
+            {
+              "task_id": "synthetic1",
+              "video_url": "file:///input/test_clip.mp4",
+              "styles": ["formal", "sarcastic", "humorous_tech", "humorous_non_tech"]
+            }
+          ]
+          JSON
+
+      - name: Run container like judge
+        run: |
+          docker run --rm \
+            -e CAPTION_BACKEND=heuristic \
+            -e FRAME_SAMPLE_COUNT=4 \
+            -v "$PWD/input:/input" \
+            -v "$PWD/output:/output" \
+            --entrypoint sh \
+            track2-styleframe-ai:ci \
+            -lc "python scripts/create_synthetic_video.py /input/test_clip.mp4 && python -m src.main"
+
+      - name: Validate output/results.json
+        run: |
+          python scripts/validate_results.py input/tasks.json output/results.json
+          python -m json.tool output/results.json
+
+      - name: Confirm linux/amd64 image architecture
+        run: |
+          docker image inspect track2-styleframe-ai:ci --format '{{.Architecture}}' | grep -q amd64
+
+      - name: Confirm no .env inside image
+        run: |
+          docker run --rm track2-styleframe-ai:ci sh -c 'test ! -f /app/.env && echo OK'
+
+      - name: Show result file
+        run: cat output/results.json
