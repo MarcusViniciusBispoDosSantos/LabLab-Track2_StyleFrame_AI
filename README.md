@@ -1,269 +1,257 @@
-# StyleFrame AI — Track 2 Video Captioning Agent
+# StyleFrame AI - Track 2 Video Captioning Agent
 
-StyleFrame AI is a Dockerized video captioning agent for **AMD Developer Hackathon ACT II — Track 2**.
+StyleFrame AI is a Dockerized video captioning agent for **AMD Developer Hackathon ACT II - Track 2**. It reads video captioning tasks from `/input/tasks.json`, analyzes each video, and writes style-specific captions to `/output/results.json`.
 
-It reads video captioning tasks from `/input/tasks.json`, analyzes each video, generates captions in the requested styles, and writes `/output/results.json` before exiting.
+The project is designed for the Track 2 contract:
 
-## Recommended GitHub repository
+- Input path: `/input/tasks.json`
+- Output path: `/output/results.json`
+- Required output: one caption for every requested style
+- Supported styles: `formal`, `sarcastic`, `humorous_tech`, `humorous_non_tech`
+- Final image target: `linux/amd64`
+- Public container image: `ghcr.io/marcusviniciusbispodossantos/styleframe-ai-track2:latest`
 
-**Repository name:**
 
-```text
-StyleFrame-AI-Track2
-```
+---
 
-**Repository description:**
+## Public Links
 
-```text
-Dockerized video captioning agent for AMD Developer Hackathon Track 2. Samples video frames, analyzes visual content, and generates formal, sarcastic, humorous_tech, and humorous_non_tech captions.
-```
-
-## Track 2 contract
-
-### Input
-
-The container reads:
+**Public GitHub Repository**
 
 ```text
-/input/tasks.json
+https://github.com/MarcusViniciusBispoDosSantos/LabLab-Track2_StyleFrame_AI
 ```
 
-Example:
+**Application URL / Demo URL**
+
+```text
+https://github.com/MarcusViniciusBispoDosSantos/LabLab-Track2_StyleFrame_AI
+```
+
+**Docker Image Reference**
+
+```text
+ghcr.io/marcusviniciusbispodossantos/styleframe-ai-track2:latest
+```
+
+**Demo Application Platform**
+
+```text
+GitHub Container Registry / Docker
+```
+
+---
+
+## Track 2 Input Format
+
+The judging system runs the container with tasks mounted at `/input/tasks.json`.
 
 ```json
 [
   {
     "task_id": "v1",
-    "video_url": "https://storage.example.com/clips/clip1.mp4",
+    "video_url": "https://example.com/video.mp4",
     "styles": ["formal", "sarcastic", "humorous_tech", "humorous_non_tech"]
   }
 ]
 ```
 
-### Output
+---
 
-The container writes:
+## Track 2 Output Format
 
-```text
-/output/results.json
-```
-
-Example:
+The container writes results to `/output/results.json` before exiting.
 
 ```json
 [
   {
     "task_id": "v1",
     "captions": {
-      "formal": "...",
-      "sarcastic": "...",
-      "humorous_tech": "...",
-      "humorous_non_tech": "..."
+      "formal": "A concise, objective caption describing the video.",
+      "sarcastic": "A dry, lightly ironic caption that still matches the video.",
+      "humorous_tech": "A funny caption using light technology or programming references.",
+      "humorous_non_tech": "A funny everyday caption with no technical jargon."
     }
   }
 ]
 ```
 
+---
+
 ## Architecture
 
-```text
-/input/tasks.json
-      ↓
-Download video URL
-      ↓
-Sample frames across the clip
-      ↓
-Analyze frames using one of three backends
-      ↓
-Generate captions for each requested style
-      ↓
-/output/results.json
-```
+StyleFrame AI uses a modular video captioning pipeline:
 
-## Caption backends
+1. **Task loader** - reads `/input/tasks.json`.
+2. **Video downloader / frame sampler** - loads the video URL and samples frames across the clip.
+3. **Visual analyzer** - extracts visual signals from the sampled frames.
+4. **Scene summarizer** - creates a concise description of what happens in the video.
+5. **Style writer** - generates captions for every requested style.
+6. **Result writer** - writes valid JSON to `/output/results.json`.
 
-StyleFrame AI supports three modes.
+The agent supports multiple backends:
 
-### 1. `heuristic`
+- `heuristic` - no-secret fallback mode for online contract validation.
+- `local_blip` - optional self-contained image captioning mode using a local BLIP model.
+- `vision_api` - optional external vision API mode when secure credentials are available.
 
-No API key required. Uses OpenCV frame sampling, color/motion/scene heuristics, and deterministic style writing.
+For final Track 2 submission, the recommended no-secret option is to publish with the local model enabled.
 
-Best for:
+---
 
-- online contract tests
-- no-secret testing
-- validating Docker behavior
+## Environment Variables
 
-```bash
-CAPTION_BACKEND=heuristic
-```
+| Variable | Default | Description |
+|---|---:|---|
+| `CAPTION_BACKEND` | `heuristic` | Captioning backend: `heuristic`, `local_blip`, or `vision_api`. |
+| `FRAME_SAMPLE_COUNT` | `8` | Number of frames to sample from each video. |
+| `INPUT_PATH` | `/input/tasks.json` | Override input file path for local testing. |
+| `OUTPUT_PATH` | `/output/results.json` | Override output file path for local testing. |
+| `VISION_API_KEY` | empty | Optional API key for `vision_api` backend. Do not commit this. |
+| `VISION_BASE_URL` | empty | Optional vision API base URL. |
+| `VISION_MODEL` | empty | Optional vision-capable model name. |
 
-### 2. `local_blip`
+Do not commit a real `.env` file. Use `.env.example` only.
 
-No API key required. Uses a local image captioning model to caption sampled frames, then converts the summarized visual content into the required styles.
+---
 
-Best for:
+## Online Validation with GitHub Actions
 
-- stronger no-secret competition submission
-- public Docker image without embedded credentials
-
-Build with:
-
-```bash
-docker buildx build \
-  --platform linux/amd64 \
-  --build-arg INSTALL_LOCAL_MODEL=true \
-  --tag your-image:latest \
-  --push \
-  .
-```
-
-Run with:
-
-```bash
-CAPTION_BACKEND=local_blip
-```
-
-### 3. `vision_api`
-
-Uses an OpenAI-compatible vision API if you provide your own credentials.
-
-Best for:
-
-- strongest caption accuracy if you have a reliable vision model API
-- private testing or hosted execution where secrets are safely injected
-
-Environment variables:
-
-```env
-CAPTION_BACKEND=vision_api
-VISION_API_KEY=your_key
-VISION_BASE_URL=https://api.openai.com/v1
-VISION_MODEL=gpt-4o-mini
-```
-
-Do not commit real API keys.
-
-## Local Docker test
-
-From the project root:
-
-```bash
-./scripts/test_with_synthetic.sh
-```
-
-This builds a `linux/amd64` image, creates a synthetic test video inside the container, runs the Track 2 container contract, and validates `/output/results.json`.
-
-## Test with public example clips
-
-```bash
-./scripts/test_with_public_clips.sh
-```
-
-This uses the public sample clips from the participant guide.
-
-## GitHub Actions online test
-
-This repository includes:
+This repository includes an online check workflow:
 
 ```text
 .github/workflows/track2-online-check.yml
 ```
 
-After pushing to GitHub:
-
-1. Open your repository.
-2. Go to **Actions**.
-3. Select **Track 2 Online Check**.
-4. Click **Run workflow**.
-5. Wait for green success.
-
-The workflow confirms:
+Run it from:
 
 ```text
-Docker image builds
-linux/amd64 architecture is used
-/input/tasks.json is read
-/output/results.json is written
-results.json is valid JSON
-all requested styles receive captions
-.env is not included in the image
+GitHub -> Actions -> Track 2 Online Check -> Run workflow
 ```
 
-## Publish Docker image to GitHub Container Registry
+A green check confirms:
 
-This repository includes:
+- Docker builds online.
+- The image runs as `linux/amd64`.
+- The container reads `/input/tasks.json`.
+- The container writes `/output/results.json`.
+- `results.json` is valid JSON.
+- Every requested caption style is present.
+- No `.env` file is included inside the image.
+
+---
+
+## Publish Docker Image to GHCR
+
+Use the included publish workflow:
 
 ```text
 .github/workflows/publish-track2-ghcr.yml
 ```
 
-To publish:
-
-1. Go to **Actions**.
-2. Select **Publish Track 2 Docker Image to GHCR**.
-3. Click **Run workflow**.
-4. Choose `install_local_model=true` for the stronger no-key local BLIP image, or `false` for the faster lightweight image.
-5. Run the workflow.
-
-Expected final image format:
+Run it from:
 
 ```text
-ghcr.io/YOUR_GITHUB_USERNAME/styleframe-ai-track2:latest
+GitHub -> Actions -> Publish Track 2 Docker Image to GHCR -> Run workflow
 ```
 
-After publishing, make the GHCR package public before submitting.
+For final submission, use:
 
-## Required linux/amd64 image
+```text
+install_local_model = true
+```
 
-The judging VM runs `linux/amd64`, so the final image must include a `linux/amd64` manifest.
+Expected image:
 
-Use:
+```text
+ghcr.io/marcusviniciusbispodossantos/styleframe-ai-track2:latest
+```
+
+After publishing, make the GHCR package public:
+
+```text
+GitHub repository -> Packages -> styleframe-ai-track2 -> Package settings -> Change visibility -> Public
+```
+
+---
+
+## Manual Docker Build Command
+
+If building manually, use the `linux/amd64` target:
 
 ```bash
 docker buildx build \
   --platform linux/amd64 \
-  --tag your-image:latest \
+  --build-arg INSTALL_LOCAL_MODEL=true \
+  --tag ghcr.io/marcusviniciusbispodossantos/styleframe-ai-track2:latest \
   --push \
   .
 ```
 
-The included GitHub Actions publish workflow already uses:
+The final image must include a `linux/amd64` manifest because the judging VM uses `linux/amd64`.
 
-```yaml
-platforms: linux/amd64
+---
+
+## Example Judge-Style Run
+
+```bash
+mkdir -p input output
+
+cat > input/tasks.json <<'JSON'
+[
+  {
+    "task_id": "v1",
+    "video_url": "https://example.com/video.mp4",
+    "styles": ["formal", "sarcastic", "humorous_tech", "humorous_non_tech"]
+  }
+]
+JSON
+
+docker run --rm \
+  -e CAPTION_BACKEND=local_blip \
+  -v "$PWD/input:/input" \
+  -v "$PWD/output:/output" \
+  ghcr.io/marcusviniciusbispodossantos/styleframe-ai-track2:latest
+
+cat output/results.json
 ```
 
-## Submission notes
+---
 
-For lablab.ai, use:
+## Submission Notes for lablab.ai
 
-**Project title:**
+Use the GitHub repository URL as the Application URL if the platform requires a browser URL. Use the GHCR image reference as the container image / Docker image reference.
+
+**Application URL**
 
 ```text
-StyleFrame AI
+https://github.com/MarcusViniciusBispoDosSantos/LabLab-Track2_StyleFrame_AI
 ```
 
-**Short description:**
+**Docker Image Reference**
 
 ```text
-A Dockerized Track 2 video captioning agent that samples video frames and generates captions in formal, sarcastic, humorous technical, and humorous non-technical styles.
+ghcr.io/marcusviniciusbispodossantos/styleframe-ai-track2:latest
 ```
 
-**Technology tags:**
+**Demo Application Platform**
 
 ```text
-Python, Docker, OpenCV, Video Captioning, AI Agent, Computer Vision, NLP, GitHub Actions
+GitHub Container Registry / Docker
 ```
 
-**Application URL:**
+---
 
-Use your public GitHub repository URL if the platform requires an `https://` URL.
+## Final Checklist
 
-**Docker image:**
-
-Use your public GHCR image reference, for example:
-
-```text
-ghcr.io/YOUR_GITHUB_USERNAME/styleframe-ai-track2:latest
-```
+- [ ] GitHub repository is public.
+- [ ] README includes setup and usage instructions.
+- [ ] GitHub Actions online check is green.
+- [ ] Docker image is published to GHCR.
+- [ ] GHCR package visibility is public.
+- [ ] Docker image includes a `linux/amd64` manifest.
+- [ ] Container reads `/input/tasks.json`.
+- [ ] Container writes `/output/results.json`.
+- [ ] Output JSON includes captions for every requested style.
+- [ ] No real `.env` or private API key is committed.
+- [ ] Cover image, video presentation, and slide presentation are uploaded to lablab.ai.
