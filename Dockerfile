@@ -15,22 +15,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt requirements-local.txt ./
+
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Set INSTALL_LOCAL_MODEL=true for a self-contained no-secret image using BLIP.
-# This increases image size/build time, but avoids API keys during evaluation.
+# This increases image size and build time, but avoids API keys during evaluation.
 ARG INSTALL_LOCAL_MODEL=false
 ARG LOCAL_MODEL_ID=Salesforce/blip-image-captioning-base
+
 RUN if [ "$INSTALL_LOCAL_MODEL" = "true" ]; then \
       pip install --no-cache-dir -r requirements-local.txt && \
-      python - <<PY \
-from transformers import BlipProcessor, BlipForConditionalGeneration; \
-model_id = "${LOCAL_MODEL_ID}"; \
-BlipProcessor.from_pretrained(model_id); \
-BlipForConditionalGeneration.from_pretrained(model_id); \
-print(f"Downloaded local caption model: {model_id}") \
-PY \
-    ; fi
+      python -c "from transformers import BlipProcessor, BlipForConditionalGeneration; model_id='${LOCAL_MODEL_ID}'; BlipProcessor.from_pretrained(model_id); BlipForConditionalGeneration.from_pretrained(model_id); print('Downloaded local caption model:', model_id)"; \
+    fi
 
 COPY . .
 
