@@ -13,10 +13,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Show repository files
+        run: |
+          set -eux
+          pwd
+          ls -la
+          find . -maxdepth 3 -type f | sort
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build linux/amd64 test image
+      - name: Build linux/amd64 image
         run: |
           set -eux
           docker buildx build \
@@ -25,33 +32,22 @@ jobs:
             --load \
             .
 
-      - name: Create Track 2 input folder
+      - name: Create Track 2 judge-style input
         run: |
           set -eux
           mkdir -p input output
           cat > input/tasks.json <<'JSON'
           [
             {
-              "task_id": "synthetic1",
-              "video_url": "file:///input/test_clip.mp4",
+              "task_id": "contract1",
+              "video_url": "file:///input/nonexistent_test_video.mp4",
               "styles": ["formal", "sarcastic", "humorous_tech", "humorous_non_tech"]
             }
           ]
           JSON
           cat input/tasks.json
 
-      - name: Create synthetic video inside Docker image
-        run: |
-          set -eux
-          docker run --rm \
-            -v "$PWD/input:/input" \
-            --entrypoint python \
-            track2-styleframe-ai:ci \
-            scripts/create_synthetic_video.py /input/test_clip.mp4
-
-          ls -lh input/test_clip.mp4
-
-      - name: Run Track 2 container like judge
+      - name: Run container like judge
         run: |
           set -eux
           docker run --rm \
@@ -61,22 +57,22 @@ jobs:
             -v "$PWD/output:/output" \
             track2-styleframe-ai:ci
 
-      - name: Validate output/results.json
+      - name: Validate output
         run: |
           set -eux
-          ls -lh output
+          ls -la output
           cat output/results.json
           python scripts/validate_results.py input/tasks.json output/results.json
           python -m json.tool output/results.json
 
-      - name: Confirm linux/amd64 image architecture
+      - name: Confirm linux/amd64 architecture
         run: |
           set -eux
           ARCH="$(docker image inspect track2-styleframe-ai:ci --format '{{.Architecture}}')"
           echo "Architecture: $ARCH"
           test "$ARCH" = "amd64"
 
-      - name: Confirm no .env inside image
+      - name: Confirm no .env in image
         run: |
           set -eux
           docker run --rm track2-styleframe-ai:ci sh -c 'test ! -f /app/.env && echo OK'
