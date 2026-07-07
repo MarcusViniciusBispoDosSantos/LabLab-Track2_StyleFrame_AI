@@ -32,7 +32,7 @@ jobs:
             --load \
             .
 
-      - name: Create Track 2 judge-style input
+      - name: Create judge-style input
         run: |
           set -eux
           mkdir -p input output
@@ -70,9 +70,12 @@ jobs:
           set -eux
           ARCH="$(docker image inspect track2-styleframe-ai:ci --format '{{.Architecture}}')"
           echo "Architecture: $ARCH"
-          test "$ARCH" = "amd64"
+          if [ "$ARCH" != "amd64" ]; then
+            echo "Expected amd64 image, got $ARCH"
+            exit 1
+          fi
 
-      - name: Confirm no .env in image
+      - name: Confirm no .env inside image
         run: |
           set -eux
-          docker run --rm track2-styleframe-ai:ci sh -c 'test ! -f /app/.env && echo OK'
+          docker run --rm track2-styleframe-ai:ci sh -c 'ls -la /app && test ! -f /app/.env && echo "OK: no .env inside image"'
